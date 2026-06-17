@@ -1,89 +1,88 @@
-# CRM → Content Platform Integration Mock
+# Content Approval Workflow Simulator
 
-A working demo of the integration pattern that connects **Veeva CRM** (sales-side) with **Veeva Vault PromoMats/MedComms** (content platform): when a piece of content clears approval in the CRM, the content platform is notified automatically and distributes it to the field — no manual hand-off required.
+A UML state machine for the promotional content lifecycle — draft, review, approval, distribution — implemented as a real, working web application. The same state model drives server-side validation, the REST API, and the diagram the UI renders, so there is exactly one definition of "what's legal" in this workflow.
 
-This repo contains two independent backend services and one dashboard that visualizes the flow between them, end to end, in real time.
+## UML state diagram
+
+![Content lifecycle state diagram](docs/state-diagram.svg)
+
+```
+[*] → Draft → In review → Approved → Distributed → Withdrawn → [*]
+                  │
+                  ▼ reject [comment required]
+               Rejected
+                  │
+                  ▼ revise
+                Draft
+```
+
+Two of the transitions carry a guard condition, the UML notation for "this transition only fires if a condition holds": `reject` and `withdraw` both require a comment, modeling the real-world requirement that a rejection or a withdrawal has to be justified, not just clicked.
+
+Each transition is also restricted to one role:
+
+| Transition | From → To | Role required | Guard |
+|---|---|---|---|
+| `submit_for_review` | Draft → In review | author | — |
+| `approve` | In review → Approved | reviewer | — |
+| `reject` | In review → Rejected | reviewer | comment required |
+| `revise` | Rejected → Draft | author | — |
+| `distribute` | Approved → Distributed | publisher | — |
+| `withdraw` | Distributed → Withdrawn | compliance | comment required |
 
 ## Architecture
 
 ```
-┌─────────────────┐        REST API           ┌──────────────────────┐
-│    Mock CRM      │  POST /approvals/:id      │   Mock Content        │
-│  (Veeva CRM)      │  /approve                  │   Platform             │
-│                   │ ───────────────────────▶  │  (Vault PromoMats /   │
-│  - approval list  │      webhook               │   MedComms)            │
-│  - approve action │  POST /webhooks/           │  - distribution log    │
-│                   │  crm-approval               │  - X-Webhook-Secret    │
-│                   │  (X-Webhook-Secret header)  │    verification        │
-└─────────────────┘                             └──────────────────────┘
-        ▲                                                  ▲
-        │                    REST polling                  │
-        └──────────────────  Dashboard  ────────────────────┘
+backend/stateMachine.js   the UML model as data: states, transitions, guards
+backend/data.js           in-memory content items + transition history
+backend/server.js         REST API; validates every transition against stateMachine.js;
+                           serves the built React app in production
+frontend/src/             React UI: lifecycle diagram, content cards, role switcher
 ```
 
-1. A rep "approves" a piece of content in the **Mock CRM** service (`POST /api/approvals/:id/approve`).
-2. The CRM service immediately calls a **webhook** on the **Mock Content Platform** service (`POST /webhooks/crm-approval`), authenticated with a shared-secret header — the same pattern Vault webhook receivers use in production.
-3. The Content Platform service validates the secret, writes a distribution record, and responds.
-4. The CRM service stores the webhook delivery result against the approval record, so you can see exactly what happened (success, status code, timestamp).
-5. The **dashboard** (static HTML/JS) polls both services' REST APIs and renders the CRM panel, the content platform panel, and a live request/response log in between.
+The frontend never decides on its own whether an action is allowed — it shows buttons for transitions the current role *should* be able to fire, but the server independently re-checks every guard on every request. Switching the "Acting as" role in the toolbar and trying an action that role doesn't own demonstrates this: the button isn't even shown, and if you call the API directly with the wrong role it comes back `409`.
 
 ## Tech stack
 
-Node.js, Express, native `fetch` for the server-to-server webhook call, vanilla HTML/CSS/JS for the dashboard. No database — both services use an in-memory store, which keeps the demo simple to run and deploy while still exercising the real integration mechanics (HTTP, JSON payloads, auth headers, status codes).
+React (Vite) for the frontend, Node.js + Express for the backend and REST API, plain JavaScript for the state machine (no external workflow library — the point of the project is to show the modeling, not hide it behind a framework). No database; an in-memory store keeps the demo simple to run and deploy.
 
 ## Running locally
 
 ```bash
-# Terminal 1
-cd mock-content-platform
+# Terminal 1 — backend (REST API)
+cd backend
 npm install
-npm start         # listens on port 4002
+npm start                  # listens on port 5003
 
-# Terminal 2
-cd mock-crm
+# Terminal 2 — frontend (dev server, proxies /api to the backend)
+cd frontend
 npm install
-npm start         # listens on port 4001, serves the dashboard at http://localhost:4001
+npm run dev                 # opens on port 5173
 ```
 
-Open `http://localhost:4001` — that's the dashboard, served as a static file by the CRM service. It already points at `http://localhost:4002` for the content platform by default; the "Apply" button lets you repoint it (useful once both services are deployed to different URLs).
+For a single combined process (closer to how it deploys):
+
+```bash
+cd frontend && npm install && npm run build
+cd ../backend && npm install && npm start    # now also serves frontend/dist at :5003
+```
 
 ## Environment variables
 
-| Service | Variable | Default | Purpose |
-|---|---|---|---|
-| mock-crm | `PORT` | `4001` | Port to listen on |
-| mock-crm | `CONTENT_PLATFORM_WEBHOOK_URL` | `http://localhost:4002/webhooks/crm-approval` | Where to POST the webhook on approval |
-| mock-crm | `WEBHOOK_SECRET` | `demo-shared-secret` | Shared secret sent in `X-Webhook-Secret` |
-| mock-content-platform | `PORT` | `4002` | Port to listen on |
-| mock-content-platform | `WEBHOOK_SECRET` | `demo-shared-secret` | Must match the CRM service's value |
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `5003` | Port the backend listens on |
 
-## Deploying (free tier, ~10 minutes)
+## Deploying
 
-These two services are independent Node apps, so each deploys as its own Web Service. [Render](https://render.com) and [Railway](https://railway.app) both have a free/low-cost tier and a near-identical flow:
+See [DEPLOYMENT.md](DEPLOYMENT.md) for deploy steps and troubleshooting notes.
 
-1. Push this repo to GitHub.
-2. **Deploy `mock-content-platform` first:**
-   - New Web Service → connect the repo → set **Root Directory** to `mock-content-platform`.
-   - Build command: `npm install`. Start command: `npm start`.
-   - Add env var `WEBHOOK_SECRET` (pick any string, e.g. `prod-demo-secret-123`).
-   - Deploy, then copy the public URL it gives you (e.g. `https://mock-content-platform.onrender.com`).
-3. **Deploy `mock-crm`:**
-   - New Web Service → same repo → **Root Directory** `mock-crm`.
-   - Build command: `npm install`. Start command: `npm start`.
-   - Add env vars: `WEBHOOK_SECRET` (same value as step 2) and `CONTENT_PLATFORM_WEBHOOK_URL` set to `https://mock-content-platform.onrender.com/webhooks/crm-approval`.
-   - Deploy, then copy its public URL.
-4. Open the `mock-crm` public URL in a browser — that serves the dashboard. In the config bar at the top, set "Mock Content Platform API" to the `mock-content-platform` public URL (no trailing path) and click **Apply**.
-5. Click **Approve** on any item — you'll see the webhook fire, the packet animate across the wire, and the item appear in the Content Platform panel, all on services running on the public internet.
+## Why this maps to Vault PromoMats/MedComms
 
-Free tiers on Render spin down after inactivity, so the first request after a while can take ~30 seconds to wake up — that's expected, not a bug.
-
-## Why this maps to the Veeva ecosystem
-
-Veeva CRM and Veeva Vault PromoMats/MedComms are separate platforms that have to stay in sync: content approved for promotional use needs to reach the rep-facing CRM layer, and field activity needs to be visible back to the content/compliance side. In production this is handled through Veeva's own integration layer and webhook/API mechanisms; this project reproduces the same shape — two systems, a REST trigger, a webhook callback, and a shared-secret check — at a scale that's easy to read, run, and explain in an interview.
+Vault PromoMats and MedComms exist to enforce exactly this kind of lifecycle on promotional and medical content — nothing reaches the field until it has cleared a defined review path, and every step has to be auditable. This project models that lifecycle explicitly as a state machine rather than scattering `if` statements through the codebase, which is what makes it possible to answer "can this content move from X to Y right now, and who's allowed to do it" with a single, inspectable source of truth instead of having to trace logic across the app.
 
 ## What I'd extend next
 
-- Persist state in a real database (Postgres) instead of in-memory, with a migration script.
-- Add retry/backoff and a dead-letter queue for failed webhook deliveries.
-- Add a second webhook direction (content platform → CRM) for "content expired/withdrawn" events.
-- Swap the shared-secret header for HMAC payload signing, matching how many production webhook providers (including Veeva's own APIs) authenticate calls.
+- Real authentication instead of a role dropdown, with the JWT/session carrying the role server-side.
+- Persist items and history in Postgres instead of memory.
+- Parallel review (multiple reviewers, all must approve) as a second branch in the state machine.
+- A timeline/Gantt view across all items instead of per-item history only.
