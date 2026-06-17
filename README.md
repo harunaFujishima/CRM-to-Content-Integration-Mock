@@ -2,7 +2,7 @@
 
 A UML state machine for the promotional content lifecycle — draft, review, approval, distribution — implemented as a real, working web application. The same state model drives server-side validation, the REST API, and the diagram the UI renders, so there is exactly one definition of "what's legal" in this workflow.
 
-**[Live demo →](https://mock-crm-xxxx.onrender.com)**
+**[Live demo →](https://crm-to-content-integration-mock-1.onrender.com/)**
 
 ## UML state diagram
 
