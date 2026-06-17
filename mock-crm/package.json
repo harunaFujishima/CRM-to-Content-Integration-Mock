@@ -1,0 +1,17 @@
+{
+  "name": "mock-crm",
+  "version": "1.0.0",
+  "description": "Mock CRM service (simulates Veeva CRM) - manages content approval requests and fires webhooks to the Content Platform on approval.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}

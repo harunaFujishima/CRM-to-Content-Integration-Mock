@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRM → Content Platform Integration Demo</title>
+<style>
+  :root{
+    --paper:#F6F8F9;
+    --surface:#FFFFFF;
+    --ink:#16202C;
+    --muted:#5B6B7C;
+    --line:#E1E5EA;
+    --crm:#2C6E6B;
+    --crm-soft:#E6F0EF;
+    --cp:#5B4B9E;
+    --cp-soft:#ECE8F7;
+    --pending:#B07A22;
+    --pending-soft:#FBF1E1;
+    --success:#2F8F5B;
+    --success-soft:#E7F5ED;
+    --mono:'IBM Plex Mono','SF Mono',Consolas,monospace;
+    --sans:'Inter','Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:14px;
+    line-height:1.5;
+  }
+  header{
+    padding:28px 32px 20px;
+    border-bottom:1px solid var(--line);
+    background:var(--surface);
+  }
+  header h1{
+    margin:0 0 4px;
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  header p{
+    margin:0;
+    color:var(--muted);
+    font-size:13px;
+    max-width:680px;
+  }
+  .tag-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .tag{
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:.03em;
+    padding:3px 8px;
+    border-radius:4px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    color:var(--muted);
+  }
+
+  .config{
+    padding:10px 32px;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+    display:flex;
+    gap:18px;
+    align-items:center;
+    flex-wrap:wrap;
+    font-size:12px;
+  }
+  .config label{color:var(--muted);margin-right:6px}
+  .config input{
+    font-family:var(--mono);
+    font-size:11.5px;
+    padding:4px 7px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    width:230px;
+    color:var(--ink);
+    background:var(--paper);
+  }
+  .config button{
+    font-family:var(--sans);
+    font-size:12px;
+    font-weight:600;
+    padding:6px 12px;
+    border-radius:5px;
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .config button:hover{border-color:var(--muted)}
+
+  main{
+    display:grid;
+    grid-template-columns:1fr 280px 1fr;
+    gap:0;
+    align-items:start;
+    padding:28px 32px 60px;
+    max-width:1280px;
+    margin:0 auto;
+  }
+  @media (max-width:980px){
+    main{grid-template-columns:1fr}
+  }
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .panel-head{
+    padding:14px 18px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+  }
+  .panel-head .sys{
+    font-size:9.5px;
+    font-family:var(--mono);
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+  .panel-head h2{
+    margin:2px 0 0;
+    font-size:15px;
+    font-weight:700;
+  }
+  .panel.crm .panel-head{background:var(--crm-soft)}
+  .panel.crm .sys{color:var(--crm)}
+  .panel.cp .panel-head{background:var(--cp-soft)}
+  .panel.cp .sys{color:var(--cp)}
+
+  .health{
+    font-family:var(--mono);
+    font-size:10px;
+    padding:3px 8px;
+    border-radius:20px;
+    background:var(--paper);
+    color:var(--muted);
+  }
+  .health.up{color:var(--success);background:var(--success-soft)}
+  .health.down{color:#A33;background:#FBE9E9}
+
+  .list{padding:10px}
+  .item{
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:11px 13px;
+    margin-bottom:8px;
+    background:var(--paper);
+  }
+  .item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .item-title{font-weight:600;font-size:13px;line-height:1.35}
+  .item-sub{color:var(--muted);font-size:11.5px;margin-top:3px}
+  .item-id{font-family:var(--mono);font-size:10px;color:var(--muted)}
+
+  .badge{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    padding:2px 7px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .badge.pending{background:var(--pending-soft);color:var(--pending)}
+  .badge.approved{background:var(--success-soft);color:var(--success)}
+  .badge.distributed{background:var(--success-soft);color:var(--success)}
+
+  .approve-btn{
+    margin-top:9px;
+    width:100%;
+    font-family:var(--sans);
+    font-size:12px;
+    font-weight:600;
+    padding:7px 0;
+    border-radius:6px;
+    border:none;
+    background:var(--crm);
+    color:#fff;
+    cursor:pointer;
+  }
+  .approve-btn:hover{opacity:.9}
+  .approve-btn:disabled{background:var(--line);color:var(--muted);cursor:default}
+
+  .channels{margin-top:8px;display:flex;flex-direction:column;gap:3px}
+  .channels span{
+    font-size:10.5px;
+    color:var(--muted);
+    display:flex;
+    align-items:center;
+    gap:5px;
+  }
+  .channels span::before{content:'✓';color:var(--success);font-weight:700}
+
+  .empty{
+    padding:30px 16px;
+    text-align:center;
+    color:var(--muted);
+    font-size:12.5px;
+  }
+
+  /* Trace / wire column */
+  .wire{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:18px 10px 0;
+    min-height:260px;
+  }
+  .wire-label{
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--muted);
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  .wire-line{
+    width:2px;
+    flex:1;
+    background:linear-gradient(to bottom,var(--crm),var(--cp));
+    min-height:200px;
+    position:relative;
+  }
+  .packet{
+    position:absolute;
+    left:50%;
+    top:0;
+    transform:translate(-50%,0);
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    background:var(--cp);
+    opacity:0;
+  }
+  .packet.fly{
+    animation:fly 900ms ease-in-out forwards;
+  }
+  @keyframes fly{
+    0%{top:0;opacity:1}
+    90%{opacity:1}
+    100%{top:100%;opacity:0}
+  }
+  .log{
+    margin-top:14px;
+    width:100%;
+    max-height:300px;
+    overflow-y:auto;
+    font-family:var(--mono);
+    font-size:10.5px;
+    line-height:1.5;
+  }
+  .log-entry{
+    padding:7px 0;
+    border-bottom:1px solid var(--line);
+    color:var(--muted);
+  }
+  .log-entry .t{color:var(--ink);font-weight:600}
+  .log-entry.req .t{color:var(--crm)}
+  .log-entry.res .t{color:var(--cp)}
+
+  .footer-note{
+    max-width:1280px;
+    margin:0 auto;
+    padding:0 32px 50px;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .footer-note code{
+    font-family:var(--mono);
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:1px 5px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CRM → Content Platform Integration</h1>
+  <p>Two independent mock services connected by REST API and webhook — approving content in the CRM service automatically triggers distribution in the Content Platform service, mirroring how Veeva CRM and Veeva Vault PromoMats/MedComms stay in sync today.</p>
+  <div class="tag-row">
+    <span class="tag">Node.js</span>
+    <span class="tag">Express</span>
+    <span class="tag">REST API</span>
+    <span class="tag">Webhooks</span>
+    <span class="tag">Shared-secret auth</span>
+  </div>
+</header>
+
+<div class="config">
+  <span><label>Mock CRM API</label><input id="crmUrl" placeholder="http://localhost:4001" /></span>
+  <span><label>Mock Content Platform API</label><input id="cpUrl" placeholder="http://localhost:4002" /></span>
+  <button onclick="applyConfig()">Apply</button>
+  <button onclick="resetDemo()">Reset demo data</button>
+  <span id="healthCrm" class="health">crm: checking…</span>
+  <span id="healthCp" class="health">content platform: checking…</span>
+</div>
+
+<main>
+  <section class="panel crm">
+    <div class="panel-head">
+      <div>
+        <div class="sys">Mock CRM &middot; Veeva CRM (sales-side)</div>
+        <h2>Content Approval Requests</h2>
+      </div>
+    </div>
+    <div class="list" id="crmList"><div class="empty">Loading…</div></div>
+  </section>
+
+  <div class="wire">
+    <div class="wire-label">webhook</div>
+    <div class="wire-line" id="wireLine"></div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <section class="panel cp">
+    <div class="panel-head">
+      <div>
+        <div class="sys">Mock Content Platform &middot; Vault PromoMats/MedComms</div>
+        <h2>Distribution Log</h2>
+      </div>
+    </div>
+    <div class="list" id="cpList"><div class="empty">No content distributed yet.</div></div>
+  </section>
+</main>
+
+<p class="footer-note">
+  Approving a request calls <code>POST /api/approvals/:id/approve</code> on the CRM service. That service then calls
+  <code>POST /webhooks/crm-approval</code> on the Content Platform service with an <code>X-Webhook-Secret</code> header,
+  which writes a distribution record and returns it. This panel just polls both services' REST APIs to render what
+  actually happened.
+</p>
+
+<script>
+let crmUrl = localStorage.getItem('crmUrl') || window.location.origin;
+let cpUrl = localStorage.getItem('cpUrl') || 'http://localhost:4002';
+document.getElementById('crmUrl').value = crmUrl;
+document.getElementById('cpUrl').value = cpUrl;
+
+function applyConfig(){
+  crmUrl = document.getElementById('crmUrl').value.trim() || window.location.origin;
+  cpUrl = document.getElementById('cpUrl').value.trim();
+  localStorage.setItem('crmUrl', crmUrl);
+  localStorage.setItem('cpUrl', cpUrl);
+  refreshAll();
+}
+
+function addLog(kind, text){
+  const log = document.getElementById('log');
+  const el = document.createElement('div');
+  el.className = 'log-entry ' + kind;
+  const time = new Date().toLocaleTimeString();
+  el.innerHTML = '<span class="t">[' + time + ']</span> ' + text;
+  log.prepend(el);
+}
+
+function flyPacket(){
+  const wire = document.getElementById('wireLine');
+  const p = document.createElement('div');
+  p.className = 'packet fly';
+  wire.appendChild(p);
+  setTimeout(()=>p.remove(), 1000);
+}
+
+async function checkHealth(url, elId, label){
+  const el = document.getElementById(elId);
+  try{
+    const r = await fetch(url + '/api/health');
+    if(!r.ok) throw new Error();
+    el.textContent = label + ': up';
+    el.className = 'health up';
+  }catch(e){
+    el.textContent = label + ': unreachable';
+    el.className = 'health down';
+  }
+}
+
+function badgeFor(status){
+  if(status === 'approved') return '<span class="badge approved">approved</span>';
+  if(status === 'distributed') return '<span class="badge distributed">distributed</span>';
+  return '<span class="badge pending">pending</span>';
+}
+
+async function loadCrm(){
+  const listEl = document.getElementById('crmList');
+  try{
+    const r = await fetch(crmUrl + '/api/approvals');
+    const items = await r.json();
+    if(!items.length){ listEl.innerHTML = '<div class="empty">No approval requests.</div>'; return; }
+    listEl.innerHTML = items.map(item => `
+      <div class="item">
+        <div class="item-top">
+          <div>
+            <div class="item-title">${item.contentTitle}</div>
+            <div class="item-sub">${item.contentType} &middot; ${item.accountName}</div>
+            <div class="item-id">${item.id}</div>
+          </div>
+          ${badgeFor(item.status)}
+        </div>
+        <button class="approve-btn" ${item.status==='approved' ? 'disabled' : ''} onclick="approve('${item.id}', this)">
+          ${item.status==='approved' ? 'Approved by ' + item.approvedBy : 'Approve & send to Content Platform'}
+        </button>
+      </div>
+    `).join('');
+  }catch(e){
+    listEl.innerHTML = '<div class="empty">Could not reach Mock CRM API at ' + crmUrl + '</div>';
+  }
+}
+
+async function loadCp(){
+  const listEl = document.getElementById('cpList');
+  try{
+    const r = await fetch(cpUrl + '/api/distributions');
+    const items = await r.json();
+    if(!items.length){ listEl.innerHTML = '<div class="empty">No content distributed yet.</div>'; return; }
+    listEl.innerHTML = items.map(item => `
+      <div class="item">
+        <div class="item-top">
+          <div>
+            <div class="item-title">${item.contentTitle}</div>
+            <div class="item-sub">${item.contentType} &middot; ${item.accountName}</div>
+            <div class="item-id">${item.contentId}</div>
+          </div>
+          ${badgeFor(item.status)}
+        </div>
+        <div class="channels">
+          ${item.channels.map(c => `<span>${c}</span>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    listEl.innerHTML = '<div class="empty">Could not reach Mock Content Platform API at ' + cpUrl + '</div>';
+  }
+}
+
+async function approve(id, btn){
+  btn.disabled = true;
+  btn.textContent = 'Sending approval…';
+  addLog('req', 'POST ' + crmUrl + '/api/approvals/' + id + '/approve');
+  try{
+    const r = await fetch(crmUrl + '/api/approvals/' + id + '/approve', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ approvedBy: 'Sandra B-J (demo)' })
+    });
+    const result = await r.json();
+    flyPacket();
+    if(result.webhookDelivery && result.webhookDelivery.delivered){
+      addLog('res', 'Webhook delivered to Content Platform — content distributed.');
+    } else {
+      addLog('res', 'Webhook call failed — check the Content Platform URL above.');
+    }
+  }catch(e){
+    addLog('res', 'Approval request failed: ' + e.message);
+  }
+  await refreshAll();
+}
+
+async function resetDemo(){
+  try{ await fetch(crmUrl + '/api/reset', {method:'POST'}); }catch(e){}
+  try{ await fetch(cpUrl + '/api/reset', {method:'POST'}); }catch(e){}
+  document.getElementById('log').innerHTML = '';
+  await refreshAll();
+}
+
+async function refreshAll(){
+  await Promise.all([loadCrm(), loadCp()]);
+  checkHealth(crmUrl, 'healthCrm', 'crm');
+  checkHealth(cpUrl, 'healthCp', 'content platform');
+}
+
+refreshAll();
+setInterval(refreshAll, 8000);
+</script>
+</body>
+</html>

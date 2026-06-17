@@ -1,0 +1,17 @@
+{
+  "name": "mock-content-platform",
+  "version": "1.0.0",
+  "description": "Mock Content Platform service (simulates Veeva Vault PromoMats/MedComms) - receives approval webhooks from the CRM and distributes content.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}
